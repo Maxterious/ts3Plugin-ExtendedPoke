@@ -37,8 +37,8 @@ static struct TS3Functions ts3Functions;
 #define CHANNELINFO_BUFSIZE 512
 #define RETURNCODE_BUFSIZE 128
 
-static char *pluginID = "extendedPoke";
-boolean waiting_for_user_input = false;
+static char* pluginID = "extendedPoke";
+BOOL waiting_for_user_input = false;
 
 #ifdef _WIN32
 /* Helper function to convert wchar_T to Utf-8 encoded strings on Windows */
