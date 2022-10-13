@@ -39,6 +39,7 @@ static struct TS3Functions ts3Functions;
 
 static char* pluginID = "extendedPoke";
 BOOL waiting_for_user_input = false;
+BOOL send_poker_feedback = true;
 
 #ifdef _WIN32
 /* Helper function to convert wchar_T to Utf-8 encoded strings on Windows */
@@ -219,7 +220,8 @@ static struct PluginMenuItem* createMenuItem(enum PluginMenuType type, int id, c
  */
 enum {
 	MENU_ID_GLOBAL_1,
-	MENU_ID_GLOBAL_2
+	MENU_ID_GLOBAL_2,
+	MENU_ID_GLOBAL_3
 };
 
 /*
@@ -246,9 +248,10 @@ void ts3plugin_initMenus(struct PluginMenuItem*** menuItems, char** menuIcon) {
 	 * e.g. for "test_plugin.dll", icon "1.png" is loaded from <TeamSpeak 3 Client install dir>\plugins\test_plugin\1.png
 	 */
 
-	BEGIN_CREATE_MENUS(2);  /* IMPORTANT: Number of menu items must be correct! */
+	BEGIN_CREATE_MENUS(3);  /* IMPORTANT: Number of menu items must be correct! */
 	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL, MENU_ID_GLOBAL_1, "set API key", "");
 	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL, MENU_ID_GLOBAL_2, "show current API key", "");
+	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL, MENU_ID_GLOBAL_3, "send poker feedback", "");
 	END_CREATE_MENUS;  /* Includes an assert checking if the number of menu items matched */
 
 	/*
@@ -289,11 +292,14 @@ int ts3plugin_onTextMessageEvent(uint64 serverConnectionHandlerID, anyID targetM
 	if (waiting_for_user_input && message != NULL) {
 		char buffer[50];
 		long long bufSize = 50;
-
-		writeConfig(message);
-
-		ts3Functions.printMessageToCurrentTab("Your API key is now set to: ");
-		ts3Functions.printMessageToCurrentTab(readConfig(buffer, bufSize));
+		
+		if (strstr(writeConfig(message, buffer, bufSize), "Failed") == NULL) {
+			ts3Functions.printMessageToCurrentTab("Your API key is now set to: ");
+			ts3Functions.printMessageToCurrentTab(readConfig(buffer, bufSize));
+		}
+		else {
+			ts3Functions.printMessageToCurrentTab(writeConfig(message, buffer, bufSize));
+		}
 
 		waiting_for_user_input = false;
 		/*return 1;*/
@@ -319,23 +325,29 @@ int ts3plugin_onClientPokeEvent(uint64 serverConnectionHandlerID, anyID fromClie
 	char buffer[50];
 	long long bufSize = 50;
 
-	if (fromClientID != myID) {
-		if (readConfig(buffer,bufSize) == NULL) {
-			ts3Functions.printMessageToCurrentTab("API key not set");
-		} else {
+	if (fromClientID == myID) {
+		return 1;
+	}
+	if (readConfig(buffer, bufSize) == NULL) {
+		ts3Functions.printMessageToCurrentTab("API key not set");
+		return 0;
+	}
+
 			char* res = call_api(readConfig(buffer,bufSize), pokerName, message);
 			if (strcmp(res, "success") == 0) {
 				char suc_msg[100] = "API call result: ";
 				ts3Functions.printMessageToCurrentTab(strcat(suc_msg, res));
-				ts3Functions.requestSendPrivateTextMsg(serverConnectionHandlerID, "Your poke was forwaded via Push Notification API", fromClientID, NULL);
+				if (send_poker_feedback) {
+					ts3Functions.requestSendPrivateTextMsg(serverConnectionHandlerID, "Your poke was forwaded via Push Notification API", fromClientID, NULL);
+				}
 			}
 			else {
 				char err_msg[500] = "API call result: ";
 				ts3Functions.printMessageToCurrentTab(strncat(err_msg, res, 450));
-				ts3Functions.requestSendPrivateTextMsg(serverConnectionHandlerID, "Your poke could NOT be forwaded via Push Notification API", fromClientID, NULL);
+				if (send_poker_feedback) {
+					ts3Functions.requestSendPrivateTextMsg(serverConnectionHandlerID, "Your poke could NOT be forwaded via Push Notification API", fromClientID, NULL);
+				}
 			}
-		}
-	}
 	return 0;  /* 0 = handle normally, 1 = client will ignore the poke */
 }
 
@@ -353,8 +365,8 @@ int ts3plugin_onClientPokeEvent(uint64 serverConnectionHandlerID, anyID fromClie
 void ts3plugin_onMenuItemEvent(uint64 serverConnectionHandlerID, enum PluginMenuType type, int menuItemID, uint64 selectedItemID) {
 	printf("PLUGIN: onMenuItemEvent: serverConnectionHandlerID=%llu, type=%d, menuItemID=%d, selectedItemID=%llu\n", (long long unsigned int)serverConnectionHandlerID, type, menuItemID, (long long unsigned int)selectedItemID);
 	
-	char buffer[50];
-	long long bufSize = 50;
+	char buffer[400];
+	long long bufSize = 400;
 	
 	switch (type) {
 	case PLUGIN_MENU_TYPE_GLOBAL:
@@ -370,13 +382,19 @@ void ts3plugin_onMenuItemEvent(uint64 serverConnectionHandlerID, enum PluginMenu
 		case MENU_ID_GLOBAL_2:
 			/* Menu global 2 was triggered */
 			
-			if (readConfig(buffer,bufSize) == NULL) {
-				ts3Functions.printMessageToCurrentTab("API key not set");
-			}
-			else {
+			if (strstr(readConfig(buffer, bufSize), "Failed") == NULL) {
 				ts3Functions.printMessageToCurrentTab("Your current API key is:");
-				ts3Functions.printMessageToCurrentTab(readConfig(buffer,bufSize));
+				ts3Functions.printMessageToCurrentTab(readConfig(buffer, bufSize));
+			} else {
+				ts3Functions.printMessageToCurrentTab(readConfig(buffer, bufSize));
 			}
+			break;
+		case MENU_ID_GLOBAL_3:
+			/* Menu global 3 was triggered */
+
+			send_poker_feedback = send_poker_feedback == true ? false : true;
+			ts3Functions.printMessageToCurrentTab("send poker feedback: ");
+			ts3Functions.printMessageToCurrentTab(send_poker_feedback ? "true" : "false");
 			break;
 		default:
 			break;
