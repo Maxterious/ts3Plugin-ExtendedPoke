@@ -18,3 +18,5 @@
 *.log
 *.ilk
 x64/**
+Debug/
+Release/
