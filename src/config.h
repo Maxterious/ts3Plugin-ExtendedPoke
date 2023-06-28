@@ -1,7 +1,19 @@
 #pragma once
 
-//write api_key into config txt file
-char* writeConfig(const char* new_api_key, char* buffer, size_t bufSize);
+//set path for the config file
+void setPluginFolderPath(char* pluginPath);
 
-//read api_key from config txt file
-char* readConfig(char* buffer, size_t bufSize);
+//function that writes given key value pair to the config file
+char* writeToConfig(char* key, char* value, char* buffer, size_t bufSize);
+
+//function that reads given value from the config file
+
+char* readFromConfig(char* key, char* buffer, size_t bufSize);
+
+
+char* checkForError(char* err_msg, char* filePath, char* buffer, size_t bufSize);
+
+char* checkForErrorClosePtr(char* err_msg, char* filePath, char* buffer, size_t bufSize, FILE* ptrToClose);
+
+//helper function to replace strings
+void replaceAll(char* str, const char* oldWord, const char* newWord);
